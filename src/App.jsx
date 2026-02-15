@@ -14,6 +14,12 @@ import Rink from './Rink';
 
 const TRUST = 65;
 const SCOUT_LOW_CUTOFF = 12;
+const INITIAL_MESSAGES = [
+  {
+    role: 'recruit',
+    text: "Coach, I heard you're looking at that kid from the city league. If he's on the roster, I'm out. I don't play with plugs.",
+  },
+];
 const MIN_SHIFTS_PER_PERIOD = 5;
 const MAX_SHIFTS_PER_PERIOD = 12;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -26,9 +32,7 @@ const rollShiftsForPeriod = (period, flowScore) => {
 
 export default function App() {
   const { momentum, addMomentum, setMomentumValue } = useUmpire();
-  const [messages, setMessages] = useState([
-    { role: 'recruit', text: "Coach, I heard you're looking at that kid from the city league. If he's on the roster, I'm out. I don't play with plugs." }
-  ]);
+  const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'newgame' | 'roster' | 'scouting' | 'rink' | 'match' | 'scrap' | 'press' | 'block'
   const [sullyHeat, setSullyHeat] = useState(60); // Tracks the beef
@@ -268,6 +272,30 @@ export default function App() {
         text: 'New opponent loaded. Fresh game is ready for puck drop.',
       },
     ]);
+  };
+
+  const resetAllGameState = () => {
+    setInput("");
+    setMessages(INITIAL_MESSAGES);
+    setMomentumValue(0);
+    setSullyHeat(60);
+    setSullyTrust(TRUST);
+    setScoutReport('unknown');
+    setRookieTaps(26);
+    setLastMatchEvents([]);
+    setPowerPlayBuff(false);
+    setCurrentPeriod(1);
+    setShiftsRemaining(0);
+    setShiftsThisPeriod(0);
+    setTeamScore(0);
+    setOpponentScore(0);
+    setGameNumber(1);
+    setRecord({ wins: 0, losses: 0, ties: 0 });
+    setMatchFinal(false);
+    setPendingTradeConfrontation(false);
+    setIsThinking(false);
+    localStorage.removeItem('BARDOWNSKI_STATE');
+    setActiveTab('chat');
   };
 
   const openMatchFromHub = () => {
@@ -703,6 +731,7 @@ export default function App() {
               startNextGame();
               setActiveTab('match');
             }}
+            onFreshStart={resetAllGameState}
           />
         ) : activeTab === 'roster' ? (
           <LockerRoom

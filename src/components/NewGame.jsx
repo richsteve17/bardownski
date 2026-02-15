@@ -8,6 +8,7 @@ export default function NewGame({
   matchFinal,
   onOpenMatch,
   onResetGame,
+  onFreshStart,
 }) {
   return (
     <div className="flex h-full flex-col bg-zinc-950 p-6">
@@ -55,6 +56,15 @@ export default function NewGame({
         >
           <RotateCcw size={16} />
           Reset Match State
+        </button>
+
+        <button
+          type="button"
+          onClick={onFreshStart}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-goal-red/40 bg-goal-red/10 py-4 font-black uppercase italic text-goal-red"
+        >
+          <RotateCcw size={16} />
+          Fresh Start (Clear All)
         </button>
 
         <p className="flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-widest text-zinc-600">

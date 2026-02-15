@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ShieldAlert, Zap, Target } from 'lucide-react';
 
 export default function ScrapEngine({ onFinish }) {
@@ -6,6 +6,7 @@ export default function ScrapEngine({ onFinish }) {
   const [oppWill, setOppWill] = useState(100);
   const [isFighting, setIsFighting] = useState(true);
   const [message, setMessage] = useState("KEEP YOUR BALANCE");
+  const lastPunchAtRef = useRef(0);
 
   const endFight = useCallback((playerWon) => {
     setIsFighting(false);
@@ -36,6 +37,9 @@ export default function ScrapEngine({ onFinish }) {
 
   const throwPunch = () => {
     if (!isFighting) return;
+    const now = Date.now();
+    if (now - lastPunchAtRef.current < 40) return; // Prevent duplicate pointer+click fires
+    lastPunchAtRef.current = now;
 
     // Impact: Lowering Will affects your own balance (Recoil)
     setOppWill((prev) => {
@@ -103,6 +107,7 @@ export default function ScrapEngine({ onFinish }) {
 
       <button
         onPointerDown={throwPunch}
+        onClick={throwPunch}
         disabled={!isFighting}
         className={`mt-12 w-full max-w-xs py-10 rounded-2xl font-black uppercase italic transition-all active:scale-95
           ${isFighting ? 'bg-white text-black hover:bg-zinc-200' : 'bg-zinc-800 text-zinc-600'}`}

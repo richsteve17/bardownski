@@ -34,7 +34,8 @@ export default function App() {
   const { momentum, addMomentum, setMomentumValue } = useUmpire();
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'newgame' | 'roster' | 'scouting' | 'rink' | 'match' | 'scrap' | 'press' | 'block'
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'newgame' | 'roster' | 'scouting' | 'match' | 'scrap' | 'press' | 'block'
+  const [matchMode, setMatchMode] = useState('engine'); // 'engine' | 'rink'
   const [sullyHeat, setSullyHeat] = useState(60); // Tracks the beef
   const [sullyTrust, setSullyTrust] = useState(TRUST);
   const [scoutReport, setScoutReport] = useState('unknown'); // 'high' | 'low' | 'unknown'
@@ -264,6 +265,7 @@ export default function App() {
     setMatchFinal(false);
     setPowerPlayBuff(false);
     setLastMatchEvents([]);
+    setMatchMode('engine');
     setGameNumber((prev) => prev + 1);
     setMessages((prev) => [
       ...prev,
@@ -292,6 +294,7 @@ export default function App() {
     setGameNumber(1);
     setRecord({ wins: 0, losses: 0, ties: 0 });
     setMatchFinal(false);
+    setMatchMode('engine');
     setPendingTradeConfrontation(false);
     setIsThinking(false);
     localStorage.removeItem('BARDOWNSKI_STATE');
@@ -310,6 +313,7 @@ export default function App() {
       ]);
       return;
     }
+    setMatchMode('engine');
     setActiveTab('match');
   };
 
@@ -398,7 +402,8 @@ export default function App() {
       ]);
     }
 
-    setActiveTab('chat');
+    setMatchMode('engine');
+    setActiveTab('match');
   };
 
   const openTradeBlock = () => {
@@ -480,7 +485,7 @@ export default function App() {
   };
 
   const finalizeRinkShift = (shiftResult, scoutText) => {
-    const inLiveMatch = activeTab === 'rink' && !matchFinal && shiftsRemaining > 0;
+    const inLiveMatch = activeTab === 'match' && !matchFinal && shiftsRemaining > 0;
 
     if (!inLiveMatch) {
       addMomentum(5);
@@ -491,11 +496,9 @@ export default function App() {
           text: "Practice rep only. No live shift on the board right now.",
         },
       ]);
-      setActiveTab('chat');
       return;
     }
 
-    const isFinalShiftOfGame = currentPeriod >= 3 && shiftsRemaining <= 1;
     setMessages((prev) => [
       ...prev,
       {
@@ -504,10 +507,6 @@ export default function App() {
       },
     ]);
     handleMatchEnd(shiftResult);
-
-    if (!isFinalShiftOfGame) {
-      setActiveTab('chat');
-    }
   };
 
   const handleRinkGoal = () => {
@@ -619,6 +618,10 @@ export default function App() {
       return;
     }
 
+    if (tabId === 'match') {
+      setMatchMode('engine');
+    }
+
     setActiveTab(tabId);
   };
 
@@ -637,7 +640,6 @@ export default function App() {
     { id: 'newgame', label: 'New Game' },
     { id: 'roster', label: 'Locker Room' },
     { id: 'scouting', label: 'Scouting' },
-    { id: 'rink', label: 'Rink' },
     { id: 'match', label: 'Match' },
     { id: 'press', label: 'Press' },
     { id: 'block', label: 'Block' },
@@ -743,32 +745,70 @@ export default function App() {
           />
         ) : activeTab === 'scouting' ? (
           <ScoutingDrill onComplete={handleScoutComplete} />
-        ) : activeTab === 'rink' ? (
-          <div className="flex-1 p-4 flex flex-col items-center justify-center">
-            <Rink
-              rookieSpeed={clamp(rookieTaps || 26, 0, 100)}
-              chemistry={chemistry}
-              onGoal={handleRinkGoal}
-              onMiss={handleRinkMiss}
-            />
-            <p className="mt-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-              Swipe to Snipe • {matchFinal || shiftsRemaining <= 0 ? 'Practice Mode' : 'Live Match Mode'}
-            </p>
-          </div>
         ) : activeTab === 'match' ? (
-          <MatchView
-            lineup={lineup}
-            momentum={momentum}
-            chemistry={chemistry}
-            powerPlayBuff={powerPlayBuff}
-            period={currentPeriod}
-            shiftsRemaining={shiftsRemaining}
-            shiftsThisPeriod={shiftsThisPeriod}
-            homeScore={teamScore}
-            awayScore={opponentScore}
-            isFinal={matchFinal}
-            onMatchEnd={handleMatchEnd}
-          />
+          <div className="flex h-full flex-col">
+            <div className="border-b border-zinc-800 bg-zinc-950/80 px-3 py-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMatchMode('engine')}
+                  className={`flex-1 rounded-md py-2 text-[10px] font-black uppercase tracking-[0.12em] ${
+                    matchMode === 'engine' ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500'
+                  }`}
+                >
+                  Match Engine
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMatchMode('rink')}
+                  className={`flex-1 rounded-md py-2 text-[10px] font-black uppercase tracking-[0.12em] ${
+                    matchMode === 'rink' ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500'
+                  }`}
+                >
+                  Rink Control
+                </button>
+              </div>
+              {isLiveGame && !matchFinal && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('scrap')}
+                  className="mt-2 w-full rounded-md border border-goal-red/40 bg-goal-red/10 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-goal-red"
+                >
+                  Drop Gloves
+                </button>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1">
+              {matchMode === 'engine' ? (
+                <MatchView
+                  lineup={lineup}
+                  momentum={momentum}
+                  chemistry={chemistry}
+                  powerPlayBuff={powerPlayBuff}
+                  period={currentPeriod}
+                  shiftsRemaining={shiftsRemaining}
+                  shiftsThisPeriod={shiftsThisPeriod}
+                  homeScore={teamScore}
+                  awayScore={opponentScore}
+                  isFinal={matchFinal}
+                  onMatchEnd={handleMatchEnd}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center p-4">
+                  <Rink
+                    rookieSpeed={clamp(rookieTaps || 26, 0, 100)}
+                    chemistry={chemistry}
+                    onGoal={handleRinkGoal}
+                    onMiss={handleRinkMiss}
+                  />
+                  <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                    Swipe to Snipe • {matchFinal || shiftsRemaining <= 0 ? 'Practice Mode' : 'Live Match Mode'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         ) : activeTab === 'scrap' ? (
           <ScrapEngine onFinish={handleScrapFinish} />
         ) : activeTab === 'block' ? (

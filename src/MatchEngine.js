@@ -45,8 +45,8 @@ export const simulateShift = (lineup, momentum, chemistry, options = {}) => {
     });
 
     // RNG for the "Bardownski" moment
-    const heroBallThreshold = powerPlayBuff ? 0.55 : 0.7;
-    if (Math.random() > heroBallThreshold) {
+    const heroBallGoalChance = powerPlayBuff ? 0.42 : 0.28;
+    if (Math.random() < heroBallGoalChance) {
       events.push({
         text: pick([
           "PING. BARDOWNSKI. Sully scores despite the hero-ball.",
@@ -79,8 +79,32 @@ export const simulateShift = (lineup, momentum, chemistry, options = {}) => {
       ]),
       type: "SYNERGY"
     });
-    shiftScore = 1;
-    swaggerGain += 15;
+    const chemistryBonus = clamp((chemistry - 20) * 0.003, 0, 0.1);
+    const momentumBonus = momentum > 30 ? 0.06 : 0;
+    const synergyGoalChance = clamp((powerPlayBuff ? 0.36 : 0.24) + chemistryBonus + momentumBonus, 0.12, 0.58);
+
+    if (Math.random() < synergyGoalChance) {
+      events.push({
+        text: pick([
+          "Rookie gets inside body position and buries it far side. Wheels cash in.",
+          "Quick touch, quick release. Rookie finishes off Sully's setup.",
+          "Give-and-go turns into a clean finish. Chemistry finally pays off.",
+        ]),
+        type: "GOAL",
+      });
+      shiftScore = 1;
+      swaggerGain += 15;
+    } else {
+      events.push({
+        text: pick([
+          "Great look off the cycle, but the goalie flashes leather.",
+          "The chance is there, but the release misses high blocker.",
+          "Rookie gets a lane and rings iron. Close, no cigar.",
+        ]),
+        type: "MISS",
+      });
+      swaggerGain += 3;
+    }
   } else {
     opponentCounterBase = 0.16;
     events.push({
@@ -98,6 +122,18 @@ export const simulateShift = (lineup, momentum, chemistry, options = {}) => {
         type: "MOMENTUM"
       });
       swaggerGain += 5;
+    }
+    if (Math.random() < 0.08 + (powerPlayBuff ? 0.06 : 0)) {
+      events.push({
+        text: pick([
+          "Broken play drops to Sully and he wires it through traffic. Goal light.",
+          "Net-front chaos and the puck sneaks over the line.",
+          "Blue-line wrister finds a tip. Bardownski steals one.",
+        ]),
+        type: "GOAL",
+      });
+      shiftScore = 1;
+      swaggerGain += 10;
     }
   }
 

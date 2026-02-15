@@ -9,6 +9,7 @@ import MatchView from './components/MatchView';
 import PressConference from './PressConference';
 import TradeBlock from './components/TradeBlock';
 import ScrapEngine from './components/ScrapEngine';
+import NewGame from './components/NewGame';
 import Rink from './Rink';
 
 const TRUST = 65;
@@ -29,7 +30,7 @@ export default function App() {
     { role: 'recruit', text: "Coach, I heard you're looking at that kid from the city league. If he's on the roster, I'm out. I don't play with plugs." }
   ]);
   const [input, setInput] = useState("");
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'roster' | 'scouting' | 'rink' | 'match' | 'scrap' | 'press' | 'block'
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'newgame' | 'roster' | 'scouting' | 'rink' | 'match' | 'scrap' | 'press' | 'block'
   const [sullyHeat, setSullyHeat] = useState(60); // Tracks the beef
   const [sullyTrust, setSullyTrust] = useState(TRUST);
   const [scoutReport, setScoutReport] = useState('unknown'); // 'high' | 'low' | 'unknown'
@@ -41,6 +42,8 @@ export default function App() {
   const [shiftsThisPeriod, setShiftsThisPeriod] = useState(0);
   const [teamScore, setTeamScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
+  const [gameNumber, setGameNumber] = useState(1);
+  const [record, setRecord] = useState({ wins: 0, losses: 0, ties: 0 });
   const [matchFinal, setMatchFinal] = useState(false);
   const [pendingTradeConfrontation, setPendingTradeConfrontation] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
@@ -48,6 +51,8 @@ export default function App() {
   const hasHydratedRef = useRef(false);
   const scrollRef = useRef(null);
   const chemistry = scoutReport === 'low' ? -20 : scoutReport === 'high' ? 25 : 0;
+  const hasGameStarted = currentPeriod > 1 || shiftsThisPeriod > 0 || teamScore > 0 || opponentScore > 0;
+  const isLiveGame = hasGameStarted && !matchFinal;
 
   // Auto-scroll to bottom of chat
   useEffect(() => {
@@ -115,6 +120,12 @@ export default function App() {
         if (typeof parsed.opponentScore === 'number') {
           setOpponentScore(parsed.opponentScore);
         }
+        if (typeof parsed.gameNumber === 'number' && parsed.gameNumber > 0) {
+          setGameNumber(parsed.gameNumber);
+        }
+        if (typeof parsed.record?.wins === 'number' && typeof parsed.record?.losses === 'number' && typeof parsed.record?.ties === 'number') {
+          setRecord(parsed.record);
+        }
         if (typeof parsed.matchFinal === 'boolean') {
           setMatchFinal(parsed.matchFinal);
         }
@@ -157,10 +168,12 @@ export default function App() {
       shiftsThisPeriod,
       teamScore,
       opponentScore,
+      gameNumber,
+      record,
       matchFinal,
     };
     localStorage.setItem('BARDOWNSKI_STATE', JSON.stringify(state));
-  }, [messages, momentum, sullyHeat, sullyTrust, scoutReport, rookieTaps, powerPlayBuff, pendingTradeConfrontation, lastMatchEvents, currentPeriod, shiftsRemaining, shiftsThisPeriod, teamScore, opponentScore, matchFinal]);
+  }, [messages, momentum, sullyHeat, sullyTrust, scoutReport, rookieTaps, powerPlayBuff, pendingTradeConfrontation, lastMatchEvents, currentPeriod, shiftsRemaining, shiftsThisPeriod, teamScore, opponentScore, gameNumber, record, matchFinal]);
 
   const handleSend = async () => {
     if (!input.trim() || isThinking) return;
@@ -221,6 +234,57 @@ export default function App() {
     setActiveTab('chat');
   };
 
+  const applyFinalOutcome = (finalTeamScore, finalOpponentScore) => {
+    const outcome = finalTeamScore > finalOpponentScore
+      ? 'W'
+      : finalTeamScore < finalOpponentScore
+        ? 'L'
+        : 'T';
+
+    setRecord((prev) => {
+      return {
+        wins: prev.wins + (outcome === 'W' ? 1 : 0),
+        losses: prev.losses + (outcome === 'L' ? 1 : 0),
+        ties: prev.ties + (outcome === 'T' ? 1 : 0),
+      };
+    });
+    return outcome;
+  };
+
+  const startNextGame = () => {
+    setCurrentPeriod(1);
+    setShiftsRemaining(0);
+    setShiftsThisPeriod(0);
+    setTeamScore(0);
+    setOpponentScore(0);
+    setMatchFinal(false);
+    setPowerPlayBuff(false);
+    setLastMatchEvents([]);
+    setGameNumber((prev) => prev + 1);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'scout',
+        text: 'New opponent loaded. Fresh game is ready for puck drop.',
+      },
+    ]);
+  };
+
+  const openMatchFromHub = () => {
+    if (matchFinal) {
+      setActiveTab('press');
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'scout',
+          text: 'Final is locked. Hit the podium before the next puck drop.',
+        },
+      ]);
+      return;
+    }
+    setActiveTab('match');
+  };
+
   const handleMatchEnd = (result) => {
     const swaggerGain = Number(result?.swaggerGain) || 0;
     const teamGoalsThisShift = Number(result?.shiftScore) || 0;
@@ -261,11 +325,12 @@ export default function App() {
     if (periodEnded) {
       if (finalReached) {
         setMatchFinal(true);
+        const outcome = applyFinalOutcome(projectedTeamScore, projectedOpponentScore);
         setMessages((prevMessages) => [
           ...prevMessages,
           {
             role: 'scout',
-            text: `Final horn: Bardownski ${projectedTeamScore} - ${projectedOpponentScore}.`,
+            text: `Final horn: Bardownski ${projectedTeamScore} - ${projectedOpponentScore}. Result: ${outcome}. Hit the podium.`,
           },
         ]);
         setActiveTab('press');
@@ -309,6 +374,26 @@ export default function App() {
   };
 
   const openTradeBlock = () => {
+    if (matchFinal) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'scout',
+          text: 'Post-game media is pending. Handle the press conference before trade calls.',
+        },
+      ]);
+      return;
+    }
+    if (isLiveGame) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'scout',
+          text: 'Trade desk is locked during live play. Handle business between games.',
+        },
+      ]);
+      return;
+    }
     if (activeTab !== 'block') {
       setMessages(prev => [
         ...prev,
@@ -323,11 +408,18 @@ export default function App() {
   };
 
   const handleTrade = (offer) => {
+    const rookieUpgrade = offer?.id === 2;
+    setMomentumValue(0);
+    setPowerPlayBuff(false);
+    setSullyHeat(25);
+    setSullyTrust(55);
+    setScoutReport(rookieUpgrade ? 'high' : 'unknown');
+    setRookieTaps(rookieUpgrade ? 90 : 26);
     setMessages(prev => [
       ...prev,
       {
         role: 'scout',
-        text: `Trade call logged: ${offer.team} offered ${offer.return}.`,
+        text: `Trade executed with ${offer.team}: ${offer.return}. Swagger reset to 0 while the room recalibrates.`,
       },
     ]);
     setPendingTradeConfrontation(true);
@@ -335,10 +427,13 @@ export default function App() {
   };
 
   const handlePressFinish = async (payload) => {
-    const finalQuestion = payload?.finalQuestion || "";
-    const finalAnswer = payload?.finalAnswer || "";
+    const qaTranscript = Array.isArray(payload?.answers) && payload.answers.length > 0
+      ? payload.answers
+        .map((entry, idx) => `Q${idx + 1}: ${entry.question}\nA${idx + 1}: ${entry.answer}`)
+        .join('\n\n')
+      : `Q: ${payload?.finalQuestion || ""}\nA: ${payload?.finalAnswer || ""}`;
 
-    const mods = await judgePressResponse(finalQuestion, finalAnswer, {
+    const mods = await judgePressResponse('Post-game media scrum', qaTranscript, {
       sullyHeat,
       rookieTaps,
     });
@@ -353,6 +448,150 @@ export default function App() {
       },
     ]);
     setActiveTab('chat');
+    startNextGame();
+  };
+
+  const finalizeRinkShift = (shiftResult, scoutText) => {
+    const inLiveMatch = activeTab === 'rink' && !matchFinal && shiftsRemaining > 0;
+
+    if (!inLiveMatch) {
+      addMomentum(5);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'scout',
+          text: "Practice rep only. No live shift on the board right now.",
+        },
+      ]);
+      setActiveTab('chat');
+      return;
+    }
+
+    const isFinalShiftOfGame = currentPeriod >= 3 && shiftsRemaining <= 1;
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'scout',
+        text: scoutText,
+      },
+    ]);
+    handleMatchEnd(shiftResult);
+
+    if (!isFinalShiftOfGame) {
+      setActiveTab('chat');
+    }
+  };
+
+  const handleRinkGoal = () => {
+    const goalSwagger = powerPlayBuff ? 60 : 50;
+    finalizeRinkShift(
+      {
+        events: [{ type: 'GOAL', text: 'Rink lane opens and Coach goes bar down in live play.' }],
+        shiftScore: 1,
+        opponentScoreGain: 0,
+        swaggerGain: goalSwagger,
+        usedPowerPlayBuff: powerPlayBuff,
+      },
+      `BARDOWNSKI! Rink finish counts in-game. Period ${currentPeriod}, shift pressure cracked.`
+    );
+  };
+
+  const handleRinkMiss = () => {
+    const baseChance = 0.18;
+    const heatPressure = clamp((sullyHeat - 45) / 180, 0, 0.22);
+    const chemistryPressure = chemistry < 0 ? 0.1 : 0;
+    const momentumPressure = momentum < 0 ? 0.1 : 0;
+    const powerPlayProtection = powerPlayBuff ? 0.08 : 0;
+    const oppGoalChance = clamp(baseChance + heatPressure + chemistryPressure + momentumPressure - powerPlayProtection, 0.1, 0.55);
+
+    const opponentScored = Math.random() < oppGoalChance;
+    finalizeRinkShift(
+      {
+        events: opponentScored
+          ? [
+              { type: 'MISS', text: "You pull it wide. Bad bounce turns into a rush the other way." },
+              { type: 'OPP_GOAL', text: "Opposition cashes the counter. That's on the board." },
+            ]
+          : [{ type: 'MISS', text: "No finish. Whistle blows before you can reload." }],
+        shiftScore: 0,
+        opponentScoreGain: opponentScored ? 1 : 0,
+        swaggerGain: opponentScored ? -18 : -8,
+        usedPowerPlayBuff: powerPlayBuff,
+      },
+      opponentScored
+        ? `Turnover off the miss. Opponent punishes it.`
+        : `No goal on the attempt. Shift ends dead.`
+    );
+  };
+
+  const handleTabSwitch = (tabId) => {
+    if (activeTab === 'scrap' && tabId !== 'scrap') {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'scout',
+          text: 'Scrap is live. You need to finish the fight before switching systems.',
+        },
+      ]);
+      return;
+    }
+
+    if (tabId === 'press' && !matchFinal) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'scout',
+          text: 'No podium yet. Finish the game before facing media.',
+        },
+      ]);
+      return;
+    }
+
+    if (tabId === 'scouting' && isLiveGame) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'scout',
+          text: 'Scouting drill is pre-game only. Finish the current game first.',
+        },
+      ]);
+      return;
+    }
+
+    if (tabId === 'scouting' && matchFinal) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'scout',
+          text: 'Media first, drills second. Finish the post-game press conference.',
+        },
+      ]);
+      return;
+    }
+
+    if (tabId === 'block') {
+      openTradeBlock();
+      return;
+    }
+
+    if (tabId === 'newgame') {
+      setActiveTab('newgame');
+      return;
+    }
+
+    if (tabId === 'match' && matchFinal) {
+      setActiveTab('press');
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'scout',
+          text: 'Final is in. Hit the podium before the next puck drop.',
+        },
+      ]);
+      return;
+    }
+
+    setActiveTab(tabId);
   };
 
   const lineup = {
@@ -367,6 +606,7 @@ export default function App() {
   };
   const navTabs = [
     { id: 'chat', label: 'War Room' },
+    { id: 'newgame', label: 'New Game' },
     { id: 'roster', label: 'Locker Room' },
     { id: 'scouting', label: 'Scouting' },
     { id: 'rink', label: 'Rink' },
@@ -396,7 +636,7 @@ export default function App() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => (tab.id === 'block' ? openTradeBlock() : setActiveTab(tab.id))}
+                onClick={() => handleTabSwitch(tab.id)}
                 className={`px-3 py-2 rounded-md text-[10px] font-black uppercase tracking-[0.12em] transition-all ${
                   activeTab === tab.id ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
                 }`}
@@ -410,7 +650,9 @@ export default function App() {
 
       {/* Unified Status Strip */}
       <div className="border-b border-zinc-800 bg-zinc-900/60 px-3 py-2">
-        <div className="grid grid-cols-3 gap-2 text-[10px] font-black uppercase tracking-wider sm:grid-cols-6">
+        <div className="grid grid-cols-3 gap-2 text-[10px] font-black uppercase tracking-wider sm:grid-cols-8">
+          <p className="text-zinc-400">Game <span className="text-white">{gameNumber}</span></p>
+          <p className="text-zinc-400">Rec <span className="text-white">{record.wins}-{record.losses}-{record.ties}</span></p>
           <p className="text-zinc-400">Score <span className="text-white">{teamScore}-{opponentScore}</span></p>
           <p className="text-zinc-400">Period <span className="text-white">{matchFinal ? 'Final' : currentPeriod}</span></p>
           <p className="text-zinc-400">Shifts <span className="text-white">{shiftStatus}</span></p>
@@ -450,6 +692,18 @@ export default function App() {
               <div ref={scrollRef} />
             </div>
           </div>
+        ) : activeTab === 'newgame' ? (
+          <NewGame
+            gameNumber={gameNumber}
+            record={record}
+            isLiveGame={isLiveGame}
+            matchFinal={matchFinal}
+            onOpenMatch={openMatchFromHub}
+            onResetGame={() => {
+              startNextGame();
+              setActiveTab('match');
+            }}
+          />
         ) : activeTab === 'roster' ? (
           <LockerRoom
             sullyHeat={sullyHeat}
@@ -465,21 +719,11 @@ export default function App() {
             <Rink
               rookieSpeed={clamp(rookieTaps || 26, 0, 100)}
               chemistry={chemistry}
-              onGoal={() => {
-                addMomentum(50);
-                setTeamScore(prev => prev + 1);
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    role: 'scout',
-                    text: 'BARDOWNSKI! Coach sniped one. Momentum surging.',
-                  },
-                ]);
-                setActiveTab('chat');
-              }}
+              onGoal={handleRinkGoal}
+              onMiss={handleRinkMiss}
             />
             <p className="mt-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-              Swipe to Snipe • Aim for the Top Cheese
+              Swipe to Snipe • {matchFinal || shiftsRemaining <= 0 ? 'Practice Mode' : 'Live Match Mode'}
             </p>
           </div>
         ) : activeTab === 'match' ? (

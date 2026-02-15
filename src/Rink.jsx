@@ -2,12 +2,13 @@ import React, { useRef, useEffect, useState } from 'react';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-export default function Rink({ rookieSpeed = 50, chemistry = 0, onGoal, onCellyTrigger }) {
+export default function Rink({ rookieSpeed = 50, chemistry = 0, onGoal, onCellyTrigger, onMiss }) {
   const canvasRef = useRef(null);
   const puckRef = useRef({ x: 200, y: 300, vx: 0, vy: 0 });
   const rafRef = useRef(0);
   const shakeFramesRef = useRef(0);
   const audioCtxRef = useRef(null);
+  const shotActiveRef = useRef(false);
   const [swipeStart, setSwipeStart] = useState(null);
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function Rink({ rookieSpeed = 50, chemistry = 0, onGoal, onCellyT
         const speedMagnitude = Math.hypot(newVx, newVy);
         const impactThreshold = 6.2 - chemistryFactor * 0.6;
         if (speedMagnitude > impactThreshold) {
+          shotActiveRef.current = false;
           shakeFramesRef.current = 14;
           playPing();
           onGoal?.("BARDOWNSKI");
@@ -75,6 +77,16 @@ export default function Rink({ rookieSpeed = 50, chemistry = 0, onGoal, onCellyT
           newVx = 0;
           newVy = 0;
         }
+      }
+
+      const speedMagnitude = Math.hypot(newVx, newVy);
+      if (shotActiveRef.current && speedMagnitude < 0.18) {
+        shotActiveRef.current = false;
+        onMiss?.();
+        nextX = 200;
+        nextY = 300;
+        newVx = 0;
+        newVy = 0;
       }
 
       puckRef.current = { x: nextX, y: nextY, vx: newVx, vy: newVy };
@@ -112,7 +124,7 @@ export default function Rink({ rookieSpeed = 50, chemistry = 0, onGoal, onCellyT
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [rookieSpeed, chemistry, onGoal, onCellyTrigger]);
+  }, [rookieSpeed, chemistry, onGoal, onCellyTrigger, onMiss]);
 
   const handlePointerDown = (e) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -139,6 +151,7 @@ export default function Rink({ rookieSpeed = 50, chemistry = 0, onGoal, onCellyT
       vx: ((endX - swipeStart.x) * power) + sullyJitter,
       vy: ((endY - swipeStart.y) * power) + sullyJitter,
     };
+    shotActiveRef.current = true;
     setSwipeStart(null);
   };
 

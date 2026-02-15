@@ -26,6 +26,7 @@ export default function App() {
   const [pendingTradeConfrontation, setPendingTradeConfrontation] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const hasHydratedRef = useRef(false);
   const scrollRef = useRef(null);
 
   // Auto-scroll to bottom of chat
@@ -45,6 +46,34 @@ export default function App() {
     window.addEventListener('resize', updateViewport);
     return () => window.removeEventListener('resize', updateViewport);
   }, []);
+
+  useEffect(() => {
+    if (hasHydratedRef.current) return;
+    const saved = localStorage.getItem('BARDOWNSKI_STATE');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.messages)) {
+          setMessages(parsed.messages);
+        }
+        if (typeof parsed.sullyHeat === 'number') {
+          setSullyHeat(parsed.sullyHeat);
+        }
+        if (typeof parsed.momentum === 'number') {
+          addMomentum(parsed.momentum);
+        }
+      } catch {
+        // Ignore malformed local storage payloads
+      }
+    }
+    hasHydratedRef.current = true;
+  }, [addMomentum]);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current) return;
+    const state = { messages, momentum, sullyHeat };
+    localStorage.setItem('BARDOWNSKI_STATE', JSON.stringify(state));
+  }, [messages, momentum, sullyHeat]);
 
   const handleSend = async () => {
     if (!input.trim() || isThinking) return;

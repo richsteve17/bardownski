@@ -1,16 +1,54 @@
-# React + Vite
+# BARDOWNSKI OS
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Give your balls a tug, tit-fucker. If you're looking for a generic React template, you're at the wrong barn.
 
-Currently, two official plugins are available:
+BARDOWNSKI OS is a theatre of conflict, built for the "Rich Legacy" standard. It's where the "Gift of Gab" meets the "Grit of the Ring," designed by a degenerate with degrees in American Studies and Peace and Conflict Studies.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+This is the manifest. This is the code. This is Bardownski.
 
-## React Compiler
+## BARDOWNSKI OS: The Theatre of Conflict
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+"Wheel, Snipe, Celly - Manage the Rift."
 
-## Expanding the ESLint configuration
+Most hockey sims are just spreadsheets with ice textures. Bardownski is different. It's a Social Physics Engine. It treats locker room drama as the primary gameplay mechanic. You aren't just a coach; you're a mediator, an agent, and a heel.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## The Core Engine
+
+### The War Room (Brain)
+- Gemini-Powered Recruitment: Talk to prospects like Sully Sullivan. They have egos, they have "Receipts," and they will call you "Ten-Ply" if you lie to them.
+- Dynamic Chirp Logic: Every message affects Trust and Heat. If you can't manage the ego, you can't manage the game.
+
+### The Locker Room (Chemistry)
+- Visualized Rifts: See the "jagged red lines" between players who hate each other.
+- Social Physics: Conflict studies in action. High "Heat" leads to "Tilted" on-ice behavior, hero-ball, and "Friendly Fire" collisions.
+
+### The Match Engine (Execution)
+- Psychology-Based Simulation: Shifts aren't determined by OVR alone. They're determined by Swagger (Momentum).
+- Bardownski Buffs: Score a pure snipe to refill the team's mental tank.
+
+### The Scrap Engine (The Code)
+- Dropping Gloves: A 1v1 rhythmic balance mini-game.
+- Consequences: Win the fight to reset the momentum. Lose, and your "Anchor" starts seeing stars while the rookie gets rattled.
+
+## Tech Stack (The Tape)
+- Vite + React: For a mobile-first, high-speed HUD.
+- Gemini 1.5 Flash: The "Brain" behind every ego and press conference.
+- Tailwind CSS: Gritty, dark-mode "War Room" aesthetic.
+- Lucide React: Precision iconography for the HUD.
+
+## The Rich Legacy Rule
+
+"Act like you've been there, or get off the pond."
+
+This project is built on the Rich Steve philosophy: High stakes, deep analysis, and authentic conversation. We don't do "AI fluff" here. We don't do "safe" analogies. We do profound connection across psychology and leadership.
+
+## Installation (Drop the Puck)
+
+1. Clone the Barn:
+   `git clone https://github.com/richsteve17/bardownski.git`
+2. Tape the Sticks:
+   `npm install`
+3. Fuel the Engine:
+   Create a `.env` with your `VITE_GEMINI_API_KEY`.
+4. Game On:
+   `npm run dev`

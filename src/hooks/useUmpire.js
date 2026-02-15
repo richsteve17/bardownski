@@ -9,6 +9,10 @@ export const useUmpire = () => {
     setMomentum(prev => clampMomentum(prev + change));
   };
 
+  const setMomentumValue = (value) => {
+    setMomentum(clampMomentum(Number(value) || 0));
+  };
+
   const judgeGoal = (gameContext, shotQuality, cellyTier) => {
     let change = 0;
     let newStatus = "CERTIFIED BEAUTY";
@@ -38,5 +42,5 @@ export const useUmpire = () => {
     return { change, newStatus };
   };
 
-  return { momentum, status, judgeGoal, addMomentum };
+  return { momentum, status, judgeGoal, addMomentum, setMomentumValue };
 };

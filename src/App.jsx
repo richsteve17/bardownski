@@ -2,32 +2,52 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Send, Zap } from 'lucide-react';
 import { useUmpire } from './hooks/useUmpire';
 import { talkToSully } from './services/sullyAI';
+import { judgePressResponse } from './pressAI';
 import LockerRoom from './LockerRoom';
 import ScoutingDrill from './ScoutingDrill';
 import MatchView from './components/MatchView';
 import PressConference from './PressConference';
 import TradeBlock from './components/TradeBlock';
 import ScrapEngine from './components/ScrapEngine';
+import Rink from './Rink';
 
 const TRUST = 65;
 const SCOUT_LOW_CUTOFF = 12;
+const MIN_SHIFTS_PER_PERIOD = 5;
+const MAX_SHIFTS_PER_PERIOD = 12;
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const rollShiftsForPeriod = (period, flowScore) => {
+  const baseByPeriod = period === 1 ? 8 : period === 2 ? 9 : 10;
+  const flowModifier = flowScore > 35 ? 2 : flowScore > 10 ? 1 : flowScore < -20 ? -1 : 0;
+  const variance = Math.floor(Math.random() * 4) - 1; // -1 to +2
+  return clamp(baseByPeriod + flowModifier + variance, MIN_SHIFTS_PER_PERIOD, MAX_SHIFTS_PER_PERIOD);
+};
 
 export default function App() {
-  const { momentum, addMomentum } = useUmpire();
+  const { momentum, addMomentum, setMomentumValue } = useUmpire();
   const [messages, setMessages] = useState([
     { role: 'recruit', text: "Coach, I heard you're looking at that kid from the city league. If he's on the roster, I'm out. I don't play with plugs." }
   ]);
   const [input, setInput] = useState("");
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'roster' | 'scouting' | 'match' | 'scrap' | 'press' | 'block'
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'roster' | 'scouting' | 'rink' | 'match' | 'scrap' | 'press' | 'block'
   const [sullyHeat, setSullyHeat] = useState(60); // Tracks the beef
+  const [sullyTrust, setSullyTrust] = useState(TRUST);
   const [scoutReport, setScoutReport] = useState('unknown'); // 'high' | 'low' | 'unknown'
+  const [rookieTaps, setRookieTaps] = useState(26);
   const [lastMatchEvents, setLastMatchEvents] = useState([]);
   const [powerPlayBuff, setPowerPlayBuff] = useState(false);
+  const [currentPeriod, setCurrentPeriod] = useState(1);
+  const [shiftsRemaining, setShiftsRemaining] = useState(0);
+  const [shiftsThisPeriod, setShiftsThisPeriod] = useState(0);
+  const [teamScore, setTeamScore] = useState(0);
+  const [opponentScore, setOpponentScore] = useState(0);
+  const [matchFinal, setMatchFinal] = useState(false);
   const [pendingTradeConfrontation, setPendingTradeConfrontation] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const hasHydratedRef = useRef(false);
   const scrollRef = useRef(null);
+  const chemistry = scoutReport === 'low' ? -20 : scoutReport === 'high' ? 25 : 0;
 
   // Auto-scroll to bottom of chat
   useEffect(() => {
@@ -48,32 +68,99 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (activeTab !== 'match' || matchFinal || shiftsRemaining > 0) return;
+    const flowScore = momentum + chemistry - sullyHeat * 0.6;
+    const rolledShifts = rollShiftsForPeriod(currentPeriod, flowScore);
+    setShiftsThisPeriod(rolledShifts);
+    setShiftsRemaining(rolledShifts);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'scout',
+        text: `Period ${currentPeriod} opens: ${rolledShifts} shifts scheduled based on game flow.`,
+      },
+    ]);
+  }, [activeTab, matchFinal, shiftsRemaining, currentPeriod, momentum, chemistry, sullyHeat]);
+
+  useEffect(() => {
     if (hasHydratedRef.current) return;
     const saved = localStorage.getItem('BARDOWNSKI_STATE');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        if (typeof parsed.momentum === 'number') {
+          setMomentumValue(parsed.momentum);
+        }
         if (Array.isArray(parsed.messages)) {
           setMessages(parsed.messages);
         }
         if (typeof parsed.sullyHeat === 'number') {
           setSullyHeat(parsed.sullyHeat);
         }
-        if (typeof parsed.momentum === 'number') {
-          addMomentum(parsed.momentum);
+        if (typeof parsed.sullyTrust === 'number') {
+          setSullyTrust(parsed.sullyTrust);
+        }
+        if (typeof parsed.currentPeriod === 'number') {
+          setCurrentPeriod(parsed.currentPeriod);
+        }
+        if (typeof parsed.shiftsRemaining === 'number') {
+          setShiftsRemaining(parsed.shiftsRemaining);
+        }
+        if (typeof parsed.shiftsThisPeriod === 'number') {
+          setShiftsThisPeriod(parsed.shiftsThisPeriod);
+        }
+        if (typeof parsed.teamScore === 'number') {
+          setTeamScore(parsed.teamScore);
+        }
+        if (typeof parsed.opponentScore === 'number') {
+          setOpponentScore(parsed.opponentScore);
+        }
+        if (typeof parsed.matchFinal === 'boolean') {
+          setMatchFinal(parsed.matchFinal);
+        }
+        if (typeof parsed.scoutReport === 'string') {
+          setScoutReport(parsed.scoutReport);
+        }
+        if (typeof parsed.powerPlayBuff === 'boolean') {
+          setPowerPlayBuff(parsed.powerPlayBuff);
+        }
+        if (typeof parsed.pendingTradeConfrontation === 'boolean') {
+          setPendingTradeConfrontation(parsed.pendingTradeConfrontation);
+        }
+        if (typeof parsed.rookieTaps === 'number') {
+          setRookieTaps(parsed.rookieTaps);
+        }
+        if (Array.isArray(parsed.lastMatchEvents)) {
+          setLastMatchEvents(parsed.lastMatchEvents);
         }
       } catch {
         // Ignore malformed local storage payloads
       }
     }
     hasHydratedRef.current = true;
-  }, [addMomentum]);
+  }, [setMomentumValue]);
 
   useEffect(() => {
     if (!hasHydratedRef.current) return;
-    const state = { messages, momentum, sullyHeat };
+    const state = {
+      messages,
+      momentum,
+      sullyHeat,
+      sullyTrust,
+      scoutReport,
+      rookieTaps,
+      powerPlayBuff,
+      pendingTradeConfrontation,
+      lastMatchEvents,
+      currentPeriod,
+      shiftsRemaining,
+      shiftsThisPeriod,
+      teamScore,
+      opponentScore,
+      matchFinal,
+    };
     localStorage.setItem('BARDOWNSKI_STATE', JSON.stringify(state));
-  }, [messages, momentum, sullyHeat]);
+  }, [messages, momentum, sullyHeat, sullyTrust, scoutReport, rookieTaps, powerPlayBuff, pendingTradeConfrontation, lastMatchEvents, currentPeriod, shiftsRemaining, shiftsThisPeriod, teamScore, opponentScore, matchFinal]);
 
   const handleSend = async () => {
     if (!input.trim() || isThinking) return;
@@ -120,6 +207,7 @@ export default function App() {
   const handleScoutComplete = (taps) => {
     const momentumGain = Math.max(5, Math.min(30, Math.round(taps * 1.2)));
     const report = taps < SCOUT_LOW_CUTOFF ? 'low' : 'high';
+    setRookieTaps(taps);
     setScoutReport(report);
     addMomentum(momentumGain);
     setSullyHeat(prev => (report === 'high' ? Math.max(0, prev - 8) : Math.min(100, prev + 10)));
@@ -135,16 +223,21 @@ export default function App() {
 
   const handleMatchEnd = (result) => {
     const swaggerGain = Number(result?.swaggerGain) || 0;
+    const teamGoalsThisShift = Number(result?.shiftScore) || 0;
+    const opponentGoalsThisShift = Number(result?.opponentScoreGain) || 0;
+    const projectedTeamScore = teamScore + teamGoalsThisShift;
+    const projectedOpponentScore = opponentScore + opponentGoalsThisShift;
+
     addMomentum(swaggerGain);
     setLastMatchEvents(result?.events ?? []);
+    if (teamGoalsThisShift > 0) {
+      setTeamScore((prev) => prev + teamGoalsThisShift);
+    }
+    if (opponentGoalsThisShift > 0) {
+      setOpponentScore((prev) => prev + opponentGoalsThisShift);
+    }
     if (result?.usedPowerPlayBuff) {
       setPowerPlayBuff(false);
-    }
-
-    const triggeredScrap = result?.events?.some((event) => event.type === 'SCRAP_TRIGGER');
-    if (triggeredScrap) {
-      setActiveTab('scrap');
-      return;
     }
 
     const sullyScored = result?.events?.some((event) => event.type === 'GOAL');
@@ -159,12 +252,39 @@ export default function App() {
       ]);
     }
 
-    setActiveTab('press');
+    const nextShifts = Math.max(0, shiftsRemaining - 1);
+    setShiftsRemaining(nextShifts);
+
+    const periodEnded = nextShifts === 0;
+    const finalReached = periodEnded && currentPeriod >= 3;
+
+    if (periodEnded) {
+      if (finalReached) {
+        setMatchFinal(true);
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            role: 'scout',
+            text: `Final horn: Bardownski ${projectedTeamScore} - ${projectedOpponentScore}.`,
+          },
+        ]);
+        setActiveTab('press');
+      } else {
+        setCurrentPeriod((prevPeriod) => prevPeriod + 1);
+        setShiftsThisPeriod(0);
+      }
+    }
+
+    const triggeredScrap = result?.events?.some((event) => event.type === 'SCRAP_TRIGGER');
+    if (triggeredScrap && !finalReached) {
+      setActiveTab('scrap');
+    }
   };
 
   const handleScrapFinish = (playerWon) => {
     if (playerWon) {
       addMomentum(50);
+      setSullyTrust((prev) => Math.min(100, prev + 10));
       setPowerPlayBuff(true);
       setMessages((prev) => [
         ...prev,
@@ -180,7 +300,7 @@ export default function App() {
         ...prev,
         {
           role: 'recruit',
-          text: "You left me exposed, Coach. Where was my support when that goon jumped in? If you won't protect me, don't ask me to anchor this team.",
+          text: "You left me exposed, Coach. If you won't protect your anchor in a scrap, don't ask me to carry this blue line.",
         },
       ]);
     }
@@ -214,69 +334,101 @@ export default function App() {
     setActiveTab('chat');
   };
 
+  const handlePressFinish = async (payload) => {
+    const finalQuestion = payload?.finalQuestion || "";
+    const finalAnswer = payload?.finalAnswer || "";
+
+    const mods = await judgePressResponse(finalQuestion, finalAnswer, {
+      sullyHeat,
+      rookieTaps,
+    });
+
+    addMomentum(mods.swaggerMod);
+    setSullyTrust((prev) => clamp(prev + mods.trustMod, 0, 100));
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'scout',
+        text: `Press grade: Swagger ${mods.swaggerMod >= 0 ? '+' : ''}${mods.swaggerMod}, Trust ${mods.trustMod >= 0 ? '+' : ''}${mods.trustMod}.`,
+      },
+    ]);
+    setActiveTab('chat');
+  };
+
   const lineup = {
-    sully: { heat: sullyHeat, trust: TRUST },
+    sully: { heat: sullyHeat, trust: sullyTrust },
     rookie: { scoutReport },
   };
-  const chemistry = scoutReport === 'low' ? -20 : scoutReport === 'high' ? 25 : 0;
   const RECRUIT_DATA = {
     name: "Sully 'The Wall' Sullivan",
     role: "Enforcer / D-man",
-    trust: TRUST,
+    trust: sullyTrust,
     heat: sullyHeat,
   };
+  const navTabs = [
+    { id: 'chat', label: 'War Room' },
+    { id: 'roster', label: 'Locker Room' },
+    { id: 'scouting', label: 'Scouting' },
+    { id: 'rink', label: 'Rink' },
+    { id: 'match', label: 'Match' },
+    { id: 'press', label: 'Press' },
+    { id: 'block', label: 'Block' },
+  ];
+  const shiftStatus = matchFinal ? 'Final' : `${shiftsRemaining}/${Math.max(shiftsThisPeriod, 0)}`;
+  const momentumColor = momentum >= 20 ? 'text-emerald-400' : momentum <= -20 ? 'text-red-400' : 'text-orange-400';
+  const heatColor = sullyHeat >= 65 ? 'text-red-400' : sullyHeat >= 45 ? 'text-orange-400' : 'text-emerald-400';
 
   return (
     <div className="flex flex-col w-full max-w-md mx-auto min-h-screen h-[100dvh] bg-black text-white overflow-hidden border-x border-zinc-800 shadow-2xl">
       {/* Header with Navigation */}
-      <header className="p-6 bg-zinc-950 border-b border-zinc-800">
-        <div className="flex justify-between items-center mb-6">
+      <header className="p-4 bg-zinc-950 border-b border-zinc-800">
+        <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-black italic tracking-tighter">BARDOWNSKI <span className="text-red-600">OS</span></h1>
           <div className="bg-zinc-900 px-3 py-1 rounded-full border border-zinc-800 text-[10px] font-bold text-orange-500">
             <Zap size={10} className="inline mr-1" /> {momentum}% SWAGGER
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800">
-          <button
-            onClick={() => setActiveTab('chat')}
-            className={`flex-1 py-2 rounded-md text-[10px] font-black uppercase tracking-[0.12em] transition-all ${activeTab === 'chat' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500'}`}
-          >
-            War Room
-          </button>
-          <button
-            onClick={() => setActiveTab('roster')}
-            className={`flex-1 py-2 rounded-md text-[10px] font-black uppercase tracking-[0.12em] transition-all ${activeTab === 'roster' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500'}`}
-          >
-            Locker Room
-          </button>
-          <button
-            onClick={() => setActiveTab('scouting')}
-            className={`flex-1 py-2 rounded-md text-[10px] font-black uppercase tracking-[0.12em] transition-all ${activeTab === 'scouting' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500'}`}
-          >
-            Scouting
-          </button>
-          <button
-            onClick={() => setActiveTab('match')}
-            className={`flex-1 py-2 rounded-md text-[10px] font-black uppercase tracking-[0.12em] transition-all ${activeTab === 'match' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500'}`}
-          >
-            Match
-          </button>
-          <button
-            onClick={() => setActiveTab('press')}
-            className={`flex-1 py-2 rounded-md text-[10px] font-black uppercase tracking-[0.12em] transition-all ${activeTab === 'press' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500'}`}
-          >
-            Press
-          </button>
-          <button
-            onClick={openTradeBlock}
-            className={`flex-1 py-2 rounded-md text-[10px] font-black uppercase tracking-[0.12em] transition-all ${activeTab === 'block' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500'}`}
-          >
-            Block
-          </button>
+        {/* Compact Mobile Nav */}
+        <div className="overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max gap-2 rounded-lg border border-zinc-800 bg-zinc-900 p-1">
+            {navTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => (tab.id === 'block' ? openTradeBlock() : setActiveTab(tab.id))}
+                className={`px-3 py-2 rounded-md text-[10px] font-black uppercase tracking-[0.12em] transition-all ${
+                  activeTab === tab.id ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
+
+      {/* Unified Status Strip */}
+      <div className="border-b border-zinc-800 bg-zinc-900/60 px-3 py-2">
+        <div className="grid grid-cols-3 gap-2 text-[10px] font-black uppercase tracking-wider sm:grid-cols-6">
+          <p className="text-zinc-400">Score <span className="text-white">{teamScore}-{opponentScore}</span></p>
+          <p className="text-zinc-400">Period <span className="text-white">{matchFinal ? 'Final' : currentPeriod}</span></p>
+          <p className="text-zinc-400">Shifts <span className="text-white">{shiftStatus}</span></p>
+          <p className="text-zinc-400">Swag <span className={momentumColor}>{momentum}</span></p>
+          <p className="text-zinc-400">Heat <span className={heatColor}>{sullyHeat}</span></p>
+          <p className="text-zinc-400">Trust <span className="text-blue-400">{sullyTrust}</span></p>
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest">
+          <span className={`rounded px-2 py-0.5 ${chemistry < 0 ? 'bg-red-500/20 text-red-300' : chemistry > 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`}>
+            Chemistry {chemistry}
+          </span>
+          {powerPlayBuff && (
+            <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-emerald-300">
+              Power Play Buff
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Conditional Rendering */}
       <main className="flex-1 min-h-0 overflow-hidden">
@@ -301,18 +453,47 @@ export default function App() {
         ) : activeTab === 'roster' ? (
           <LockerRoom
             sullyHeat={sullyHeat}
-            trust={TRUST}
+            trust={sullyTrust}
             momentum={momentum}
             scoutReport={scoutReport}
+            powerPlayBuff={powerPlayBuff}
           />
         ) : activeTab === 'scouting' ? (
           <ScoutingDrill onComplete={handleScoutComplete} />
+        ) : activeTab === 'rink' ? (
+          <div className="flex-1 p-4 flex flex-col items-center justify-center">
+            <Rink
+              rookieSpeed={clamp(rookieTaps || 26, 0, 100)}
+              chemistry={chemistry}
+              onGoal={() => {
+                addMomentum(50);
+                setTeamScore(prev => prev + 1);
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    role: 'scout',
+                    text: 'BARDOWNSKI! Coach sniped one. Momentum surging.',
+                  },
+                ]);
+                setActiveTab('chat');
+              }}
+            />
+            <p className="mt-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+              Swipe to Snipe • Aim for the Top Cheese
+            </p>
+          </div>
         ) : activeTab === 'match' ? (
           <MatchView
             lineup={lineup}
             momentum={momentum}
             chemistry={chemistry}
             powerPlayBuff={powerPlayBuff}
+            period={currentPeriod}
+            shiftsRemaining={shiftsRemaining}
+            shiftsThisPeriod={shiftsThisPeriod}
+            homeScore={teamScore}
+            awayScore={opponentScore}
+            isFinal={matchFinal}
             onMatchEnd={handleMatchEnd}
           />
         ) : activeTab === 'scrap' ? (
@@ -330,7 +511,8 @@ export default function App() {
         ) : (
           <PressConference
             lastMatchEvents={lastMatchEvents}
-            onFinish={() => setActiveTab('chat')}
+            stats={{ sullyHeat, rookieTaps }}
+            onFinish={handlePressFinish}
           />
         )}
       </main>
